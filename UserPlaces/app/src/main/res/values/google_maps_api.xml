@@ -1,4 +1,3 @@
 <resources>
     <string name="google_maps_key_instructions" templateMergeStrategy="replace"></string>
-    <string name="google_maps_key" templateMergeStrategy="preserve">google_maps_key</string>
 </resources>

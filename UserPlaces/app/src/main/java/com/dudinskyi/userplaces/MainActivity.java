@@ -3,6 +3,7 @@ package com.dudinskyi.userplaces;
 import android.app.SearchManager;
 import android.app.SearchableInfo;
 import android.content.Context;
+import android.content.Intent;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.Bundle;
@@ -20,6 +21,9 @@ import android.view.Window;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import com.dudinskyi.userplaces.retrofit.NearBySearchService;
+import com.dudinskyi.userplaces.retrofit.SearchResult;
+import com.dudinskyi.userplaces.retrofit.TextSearchService;
 import com.nostra13.universalimageloader.core.ImageLoader;
 import com.nostra13.universalimageloader.core.ImageLoaderConfiguration;
 
@@ -39,8 +43,12 @@ import retrofit.client.Response;
  * @author Oleksandr Dudinskyi(dudinskyj@gmail.com)
  */
 public class MainActivity extends ActionBarActivity implements
-        SearchView.OnQueryTextListener {
-    private static final String YOUR_API_KEY = "YOUR_API_KEY";
+        SearchView.OnQueryTextListener, View.OnClickListener {
+    private enum SearchType {
+        NEARBY, TEXT;
+    }
+
+    public static final String YOUR_API_KEY = "YOUR_API_KEY";
     private static final String QUERY_PARAM_KEY = "QUERY_PARAM_KEY";
     private SearchView mSearchView;
     private TextView mWelcomeTextView;
@@ -52,6 +60,8 @@ public class MainActivity extends ActionBarActivity implements
     private String mQuery;
     private double mUserLocationLat = 0;
     private double mUserLocationLng = 0;
+    private static final int GET_SEARCH_TYPE = 0;
+    private SearchType mSearchType = SearchType.NEARBY;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -103,9 +113,22 @@ public class MainActivity extends ActionBarActivity implements
         int id = item.getItemId();
         //noinspection SimplifiableIfStatement
         if (id == R.id.action_settings) {
-            return true;
+            Intent settingsIntent = new Intent(MainActivity.this, SettingsActivity.class);
+            startActivityForResult(settingsIntent, GET_SEARCH_TYPE);
         }
         return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == GET_SEARCH_TYPE && resultCode == RESULT_OK) {
+            if (SettingsActivity.NEARBY_SEARCH.equals(data.getExtras().getString(SettingsActivity.SEARCH_TYPE_KEY))) {
+                mSearchType = SearchType.NEARBY;
+            } else {
+                mSearchType = SearchType.TEXT;
+            }
+        }
     }
 
     private void setupSearchView(MenuItem searchItem) {
@@ -148,17 +171,10 @@ public class MainActivity extends ActionBarActivity implements
 
     private void searchQueryRequest(String query) {
         mQuery = query;
-        NearBySearchService service = mRestAdapter.create(NearBySearchService.class);
         Map<String, String> searchParams = new HashMap<>();
-        searchParams.put("location", mUserLocationLat + "," + mUserLocationLng);
-        searchParams.put("rankBy", "distance");
-        searchParams.put("sensor", "true");
-        searchParams.put("query", query);
-        searchParams.put("radius", "500");
-        searchParams.put("key", YOUR_API_KEY);
-        service.nearBySearch(searchParams, new Callback<NearBySearchResult>() {
+        Callback<SearchResult> callback = new Callback<SearchResult>() {
             @Override
-            public void success(NearBySearchResult nearBySearchResults, Response response) {
+            public void success(SearchResult nearBySearchResults, Response response) {
                 if (response.getStatus() == 200) {
                     mSearchAdapter = new SearchAdapter(nearBySearchResults);
                     mWelcomeTextView.setVisibility(View.GONE);
@@ -169,30 +185,53 @@ public class MainActivity extends ActionBarActivity implements
             @Override
             public void failure(RetrofitError retrofitError) {
             }
-        });
+        };
+        searchParams.put("query", query);
+        searchParams.put("key", YOUR_API_KEY);
+        if (SearchType.NEARBY == mSearchType) {
+            searchParams.put("location", mUserLocationLat + "," + mUserLocationLng);
+            searchParams.put("rankBy", "distance");
+            searchParams.put("sensor", "true");
+            searchParams.put("radius", "500");
+            NearBySearchService service = mRestAdapter.create(NearBySearchService.class);
+            service.search(searchParams, callback);
+        } else {
+            TextSearchService service = mRestAdapter.create(TextSearchService.class);
+            service.search(searchParams, callback);
+        }
     }
 
     protected boolean isAlwaysExpanded() {
         return false;
     }
 
+    @Override
+    public void onClick(View v) {
+        Intent intent = new Intent(MainActivity.this, DetailsActivity.class);
+        intent.putExtra(DetailsActivity.PLACE_ID_KEY, (String) v.getTag());
+        startActivity(intent);
+    }
+
     class SearchAdapter extends RecyclerView.Adapter<SearchAdapter.ViewHolder> {
-        private NearBySearchResult mNearBySearchResult;
+        private SearchResult mNearBySearchResult;
 
         public class ViewHolder extends RecyclerView.ViewHolder {
+            public View rootView;
             public TextView placeTitle;
             public ImageView imageView;
             public TextView distance;
 
             public ViewHolder(View v) {
                 super(v);
+                rootView = v;
+                v.setOnClickListener(MainActivity.this);
                 placeTitle = (TextView) v.findViewById(R.id.search_item_name);
                 imageView = (ImageView) v.findViewById(R.id.icon);
                 distance = (TextView) v.findViewById(R.id.distance);
             }
         }
 
-        public SearchAdapter(NearBySearchResult nearBySearchJsonResult) {
+        public SearchAdapter(SearchResult nearBySearchJsonResult) {
             mNearBySearchResult = nearBySearchJsonResult;
         }
 
@@ -207,6 +246,7 @@ public class MainActivity extends ActionBarActivity implements
 
         @Override
         public void onBindViewHolder(ViewHolder holder, int position) {
+            holder.rootView.setTag(mNearBySearchResult.results.get(position).place_id);
             holder.placeTitle.setText(mNearBySearchResult.results.get(position).name);
             ImageLoader.getInstance().displayImage(mNearBySearchResult.results.get(position).icon,
                     holder.imageView);

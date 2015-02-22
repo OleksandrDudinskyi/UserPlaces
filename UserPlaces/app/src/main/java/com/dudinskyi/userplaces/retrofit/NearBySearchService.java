@@ -1,4 +1,4 @@
-package com.dudinskyi.userplaces;
+package com.dudinskyi.userplaces.retrofit;
 
 import java.util.Map;
 
@@ -13,5 +13,5 @@ import retrofit.http.QueryMap;
  */
 public interface NearBySearchService {
     @GET("/nearbysearch/json")
-    void nearBySearch(@QueryMap Map<String, String> options, Callback<NearBySearchResult> callback);
+    public void search(@QueryMap Map<String, String> options, Callback<SearchResult> callback);
 }
