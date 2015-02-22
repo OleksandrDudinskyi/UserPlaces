@@ -13,5 +13,15 @@ public class NearBySearchResult {
     class Result {
         String name;
         String icon;
+        Geometry geometry;
+    }
+
+    class Location {
+        double lat;
+        double lng;
+    }
+
+    class Geometry {
+        Location location;
     }
 }

@@ -3,4 +3,5 @@
 
     <string name="search_hint">Please type hint there</string>
     <string name="action_settings">Settings</string>
+    <string name="welcome_text">Hi User! Please search place what you want</string>
 </resources>
